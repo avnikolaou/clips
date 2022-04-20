@@ -20,6 +20,10 @@ export class ModalService {
     });
   }
 
+  unregister(id: string) {
+    this.modals = this.modals.filter((m) => m.id !== id);
+  }
+
   isModalOpen(id: string): boolean {
     return !!this.modals.find((m) => m.id === id)?.visible;
   }
