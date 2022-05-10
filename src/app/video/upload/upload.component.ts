@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import { FormControl, FormGroup, Validators } from '@angular/forms';
 
 @Component({
   selector: 'app-upload',
@@ -12,6 +13,12 @@ export class UploadComponent implements OnInit {
 
   constructor() {}
 
+  title = new FormControl('', [Validators.required, Validators.minLength(3)]);
+
+  uploadForm = new FormGroup({
+    title: this.title,
+  });
+
   ngOnInit(): void {}
 
   storeFile($event: Event) {
@@ -22,6 +29,11 @@ export class UploadComponent implements OnInit {
       return;
     }
 
+    this.title.setValue(this.file.name.replace(/\.[^/.]+$/, ''));
     this.nextStep = true;
+  }
+
+  uploadFile() {
+    console.log('File uploaded');
   }
 }
