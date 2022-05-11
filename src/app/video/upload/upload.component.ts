@@ -1,7 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy } from '@angular/core';
 import { FormControl, FormGroup, Validators } from '@angular/forms';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
-import { AngularFireStorage } from '@angular/fire/compat/storage';
+import {
+  AngularFireStorage,
+  AngularFireUploadTask,
+} from '@angular/fire/compat/storage';
 import firebase from 'firebase/compat/app';
 import { last, switchMap } from 'rxjs/operators';
 import { v4 as uuid } from 'uuid';
@@ -13,7 +16,7 @@ import { ClipService } from 'src/app/services/clip.service';
   templateUrl: './upload.component.html',
   styleUrls: ['./upload.component.scss'],
 })
-export class UploadComponent implements OnInit {
+export class UploadComponent implements OnDestroy {
   isDragOver = false;
   file: File | null = null;
   nextStep = false;
@@ -24,6 +27,7 @@ export class UploadComponent implements OnInit {
   percentage = 0;
   showPercentage = false;
   user: firebase.User | null = null;
+  task?: AngularFireUploadTask;
 
   constructor(
     private storage: AngularFireStorage,
@@ -39,11 +43,15 @@ export class UploadComponent implements OnInit {
     title: this.title,
   });
 
-  ngOnInit(): void {}
+  ngOnDestroy(): void {
+    this.task?.cancel();
+  }
 
   storeFile($event: Event) {
     this.isDragOver = false;
-    this.file = (event as DragEvent).dataTransfer?.files.item(0) ?? null;
+    this.file = (event as DragEvent).dataTransfer
+      ? ($event as DragEvent).dataTransfer?.files.item(0) ?? null
+      : ($event.target as HTMLInputElement).files?.item(0) ?? null;
 
     if (!this.file || this.file.type !== 'video/mp4') {
       return;
@@ -54,6 +62,7 @@ export class UploadComponent implements OnInit {
   }
 
   uploadFile() {
+    this.uploadForm.disable();
     this.showAlert = true;
     this.alertColor = 'blue';
     this.alertMessage = 'Please wait! Your clip is being uploaded.';
@@ -61,16 +70,16 @@ export class UploadComponent implements OnInit {
     this.showPercentage = true;
 
     const clipFilename = uuid();
-    const clipPath = `clips/${clipFilename}_${this.file?.name}.mp4`;
+    const clipPath = `clips/${clipFilename}_${this.file?.name}`;
 
-    const task = this.storage.upload(clipPath, this.file);
+    this.task = this.storage.upload(clipPath, this.file);
     const clipRef = this.storage.ref(clipPath);
 
-    task.percentageChanges().subscribe((progress) => {
+    this.task.percentageChanges().subscribe((progress) => {
       this.percentage = (progress as number) / 100;
     });
 
-    task
+    this.task
       .snapshotChanges()
       .pipe(
         last(),
@@ -94,6 +103,7 @@ export class UploadComponent implements OnInit {
           this.showPercentage = false;
         },
         error: (error) => {
+          this.uploadForm.enable();
           this.alertColor = 'red';
           this.alertMessage = 'Upload failed! Please try again later.';
           this.inSubmission = true;
