@@ -31,6 +31,8 @@ export class UploadComponent implements OnDestroy {
   user: firebase.User | null = null;
   task?: AngularFireUploadTask;
   screenshots: string[] = [];
+  selectedScreenshot = '';
+  screenshotTask?: AngularFireUploadTask;
 
   constructor(
     private router: Router,
@@ -54,6 +56,10 @@ export class UploadComponent implements OnDestroy {
   }
 
   async storeFile($event: Event) {
+    if (this.ffmpegService.isLoading) {
+      return;
+    }
+
     this.isDragOver = false;
     this.file = (event as DragEvent).dataTransfer
       ? ($event as DragEvent).dataTransfer?.files.item(0) ?? null
@@ -64,12 +70,13 @@ export class UploadComponent implements OnDestroy {
     }
 
     this.screenshots = await this.ffmpegService.getScreenShots(this.file);
+    this.selectedScreenshot = this.screenshots[0];
 
     this.title.setValue(this.file.name.replace(/\.[^/.]+$/, ''));
     this.nextStep = true;
   }
 
-  uploadFile() {
+  async uploadFile() {
     this.uploadForm.disable();
     this.showAlert = true;
     this.alertColor = 'blue';
@@ -79,6 +86,13 @@ export class UploadComponent implements OnDestroy {
 
     const clipFilename = uuid();
     const clipPath = `clips/${clipFilename}_${this.file?.name}`;
+
+    const screenshotBlob = await this.ffmpegService.blobFromURL(
+      this.selectedScreenshot
+    );
+    const screenshotPath = `screenshots/${clipFilename}.png`;
+
+    this.screenshotTask = this.storage.upload(screenshotPath, screenshotBlob);
 
     this.task = this.storage.upload(clipPath, this.file);
     const clipRef = this.storage.ref(clipPath);
