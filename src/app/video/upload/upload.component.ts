@@ -8,6 +8,7 @@ import {
 } from '@angular/fire/compat/storage';
 import firebase from 'firebase/compat/app';
 import { last, switchMap } from 'rxjs/operators';
+import { combineLatest } from 'rxjs';
 import { v4 as uuid } from 'uuid';
 
 import { ClipService } from 'src/app/services/clip.service';
@@ -97,8 +98,19 @@ export class UploadComponent implements OnDestroy {
     this.task = this.storage.upload(clipPath, this.file);
     const clipRef = this.storage.ref(clipPath);
 
-    this.task.percentageChanges().subscribe((progress) => {
-      this.percentage = (progress as number) / 100;
+    combineLatest([
+      this.task.percentageChanges(),
+      this.screenshotTask.percentageChanges(),
+    ]).subscribe((progress) => {
+      const [clipProgress, screenshotProgress] = progress;
+
+      if (!clipProgress || !screenshotProgress) {
+        return;
+      }
+
+      const total = clipProgress + screenshotProgress;
+
+      this.percentage = (total as number) / 200;
     });
 
     this.task
