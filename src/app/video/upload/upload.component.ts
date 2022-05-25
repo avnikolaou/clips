@@ -7,8 +7,8 @@ import {
   AngularFireUploadTask,
 } from '@angular/fire/compat/storage';
 import firebase from 'firebase/compat/app';
-import { last, switchMap } from 'rxjs/operators';
-import { combineLatest } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
+import { combineLatest, forkJoin } from 'rxjs';
 import { v4 as uuid } from 'uuid';
 
 import { ClipService } from 'src/app/services/clip.service';
@@ -97,6 +97,7 @@ export class UploadComponent implements OnDestroy {
 
     this.task = this.storage.upload(clipPath, this.file);
     const clipRef = this.storage.ref(clipPath);
+    const screenshotRef = this.storage.ref(screenshotPath);
 
     combineLatest([
       this.task.percentageChanges(),
@@ -113,20 +114,25 @@ export class UploadComponent implements OnDestroy {
       this.percentage = (total as number) / 200;
     });
 
-    this.task
-      .snapshotChanges()
+    forkJoin([
+      this.task.snapshotChanges(),
+      this.screenshotTask.snapshotChanges(),
+    ])
       .pipe(
-        last(),
-        switchMap(() => clipRef.getDownloadURL())
+        switchMap(() =>
+          forkJoin([clipRef.getDownloadURL(), screenshotRef.getDownloadURL()])
+        )
       )
       .subscribe({
-        next: async (url) => {
+        next: async (urls) => {
+          const [clipURL, screenshotURL] = urls;
           const clip = {
             uid: this.user?.uid as string,
             displayName: this.user?.displayName as string,
             title: this.title.value,
             fileName: `${clipFilename}_${this.file?.name}`,
-            url,
+            url: clipURL,
+            screenshotURL,
             timeStamp: firebase.firestore.FieldValue.serverTimestamp(),
           };
 
