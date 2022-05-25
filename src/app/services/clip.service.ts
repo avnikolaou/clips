@@ -8,7 +8,7 @@ import {
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { AngularFireStorage } from '@angular/fire/compat/storage';
 import { switchMap, map } from 'rxjs/operators';
-import { of, BehaviorSubject, combineLatest } from 'rxjs';
+import { of, BehaviorSubject, combineLatest, lastValueFrom } from 'rxjs';
 
 import IClip from '../models/clip.model';
 
@@ -17,6 +17,8 @@ import IClip from '../models/clip.model';
 })
 export class ClipService {
   public clipsCollection: AngularFirestoreCollection<IClip>;
+  pageClips: IClip[] = [];
+  isLoading = false;
 
   constructor(
     private db: AngularFirestore,
@@ -62,5 +64,32 @@ export class ClipService {
     await screenshotRef.delete();
 
     await this.clipsCollection.doc(clip.docID).delete();
+  }
+
+  async getClips() {
+    if (this.isLoading) {
+      return;
+    }
+
+    this.isLoading = true;
+    let query = this.clipsCollection.ref.orderBy('timeStamp', 'desc').limit(6);
+
+    const { length } = this.pageClips;
+
+    if (length) {
+      const lastDocID = this.pageClips[length - 1].docID;
+      const lastDoc = await lastValueFrom(
+        this.clipsCollection.doc(lastDocID).get()
+      );
+
+      query = query.startAfter(lastDoc);
+    }
+
+    const snapshot = await query.get();
+    snapshot.forEach((doc) => {
+      this.pageClips.push({ docID: doc.id, ...doc.data() });
+    });
+
+    this.isLoading = false;
   }
 }
